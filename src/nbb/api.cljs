@@ -40,7 +40,8 @@
      ;; (prn :path path)
      (let [path (path/resolve (or path "script.cljs"))
            opts (if (:config opts)
-                  (assoc opts :config
+                  (assoc opts :config-dir (path/dirname (path/resolve (:config opts)))
+                         :config
                          (edn/read-string
                           (fs/readFileSync
                            (:config opts)
