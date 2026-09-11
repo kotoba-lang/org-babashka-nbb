@@ -1,13 +1,13 @@
 {
   "name": "nbb",
-  "version": "1.4.208-cljk.1",
+  "version": "1.5.212-cljk.1",
   "type": "module",
   "main": "index.mjs",
   "bin": {
     "nbb": "cli.js",
     "nbbun": "nbbun.js"
   },
-  "description": "nbb 1.4.208 with .cljk classpath resolution \u2014 the Clojure-shaped script engine behind kotoba-lang/kotoba bin/kbb",
+  "description": "nbb 1.5.212 with .cljk classpath resolution \u2014 the Clojure-shaped script engine behind kotoba-lang/kotoba bin/kbb",
   "dependencies": {
     "import-meta-resolve": "^4.1.0"
   },

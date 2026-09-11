@@ -17,13 +17,10 @@
    [nbb.impl.sci :as sci-cfg]
    [sci.core :as sci]
    [sci.ctx-store :as ctx]
-   [sci.impl.unrestrict :refer [*unrestricted*]]
    [sci.impl.vars :as vars]
    [sci.lang]
    [shadow.esm :as esm])
   (:require-macros [nbb.macros :as macros]))
-
-(set! *unrestricted* true)
 
 (def await-counter 0)
 
@@ -199,7 +196,7 @@
 
 (defn find-file-on-classpath [munged]
   (let [file (str/replace (str munged) #"\." "/")
-;; `.cljk` is Kotoba's Clojure-shaped source surface (com-junkawasaki/root
+        ;; `.cljk` is Kotoba's Clojure-shaped source surface (com-junkawasaki/root
         ;; ADR-2609111500): `foo.cljk` is the plain rename, `foo.cljs.cljk` /
         ;; `foo.cljc.cljk` / `foo.clj.cljk` are the collision spellings the
         ;; rename used when two of the old extensions shared a basename. They
@@ -400,16 +397,29 @@
                 sci/file (:file opts)]
     (sci/eval-form (ctx/get-ctx) form)))
 
+(defn return-value
+  "Continuation for `eval-seq` that returns the value of the form that was
+  evaluated last, together with the opts it was evaluated with, instead of
+  reading the next top level form."
+  [v _reader opts]
+  (.then (js/Promise.resolve v)
+         (fn [v] {:value v :opts opts})))
+
 (defn eval-seq [reader form opts eval-next]
   (let [fst (first form)]
     (cond (= 'do fst)
-          (reduce (fn [acc form]
-                    (.then acc (fn [_]
-                                 (if (seq? form)
-                                   (eval-seq reader form opts eval-next)
-                                   (eval-simple form opts)))))
-                  (js/Promise.resolve nil)
-                  (rest form))
+          ;; the body must not read ahead in reader, the next top level form is
+          ;; read when the whole do form is done
+          (-> (reduce (fn [acc form]
+                        (.then acc (fn [{:keys [opts]}]
+                                     (if (seq? form)
+                                       (eval-seq reader form opts return-value)
+                                       (return-value (eval-simple form opts)
+                                                     reader opts)))))
+                      (js/Promise.resolve {:opts opts})
+                      (rest form))
+              (.then (fn [{:keys [value opts]}]
+                       (eval-next value reader opts))))
           (= 'ns fst)
           (.then (eval-ns-form form opts)
                  (fn [ns-obj]
@@ -655,7 +665,6 @@
                                'remove-tap (sci/copy-var remove-tap core-ns)
                                'uuid (sci/copy-var uuid core-ns)
                                'Atom (sci/copy-var Atom core-ns)
-                               'IEditableCollection (sci/copy-var IEditableCollection core-ns)
                                'MapEntry (sci/copy-var MapEntry core-ns)
                                'UUID (sci/copy-var UUID core-ns)
                                'update-vals (sci/copy-var update-vals core-ns)
@@ -671,20 +680,23 @@
                                'Keyword (sci/copy-var Keyword core-ns)
                                'Symbol (sci/copy-var Symbol core-ns)
                                'PersistentVector PersistentVector
-                               'IFn (sci/copy-var IFn core-ns)
                                'swap-vals! (sci/copy-var swap-vals! core-ns)
                                'reset-vals! (sci/copy-var reset-vals! core-ns)
                                'PersistentQueue (let [x PersistentQueue]
                                                   (gobj/set x "EMPTY" cljs.core/PersistentQueue.EMPTY)
                                                   x)
                                'demunge (sci/copy-var demunge core-ns)
-                               'IWithMeta (sci/copy-var IWithMeta core-ns)
-                               'IMeta (sci/copy-var IMeta core-ns)
-                               'ISeq (sci/copy-var ISeq core-ns)
-                               'INamed (sci/copy-var INamed core-ns)
-                               'ILookup (sci/copy-var ILookup core-ns)
                                'abs (sci/copy-var abs core-ns)
-                               'Cons cljs.core/Cons}
+                               'Cons cljs.core/Cons
+                               'List cljs.core/List
+                               'EmptyList cljs.core/EmptyList
+                               'PersistentArrayMap cljs.core/PersistentArrayMap
+                               'PersistentHashMap cljs.core/PersistentHashMap
+                               'PersistentTreeMap cljs.core/PersistentTreeMap
+                               'Subvec cljs.core/Subvec
+                               'PersistentHashSet cljs.core/PersistentHashSet
+                               'PersistentTreeSet cljs.core/PersistentTreeSet
+                               'write-all (sci/copy-var write-all core-ns)}
                 'cljs.reader {'read-string (sci/copy-var edn/read-string (sci/create-ns 'cljs.reader))}
                 'clojure.main {'repl-requires (sci/copy-var
                                                repl-requires
@@ -711,9 +723,8 @@
    :classes {'js universe :allow :all
              'goog.object (clj->js goog-object-ns)
              'ExceptionInfo ExceptionInfo
-             'Math js/Math}}))
-
-(sci/enable-unrestricted-access!)
+             'Math js/Math}
+   :unrestricted true}))
 
 (def old-require (sci/eval-form (ctx/get-ctx) 'require))
 

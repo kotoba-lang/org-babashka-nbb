@@ -1,6 +1,6 @@
 # kotoba-lang/org-babashka-nbb
 
-**A fork of [babashka/nbb](https://github.com/babashka/nbb) 1.4.208 whose classpath
+**A fork of [babashka/nbb](https://github.com/babashka/nbb) 1.5.212 whose classpath
 resolver also finds `.cljk` files.** It is the engine behind `kotoba-lang/kotoba`
 `bin/kbb` for Clojure-shaped `.cljk` scripts (`kbb --backend sci <script.cljk>`),
 and it is what `nbb` on PATH must be in a workspace that renamed its Clojure
@@ -8,7 +8,8 @@ source to `.cljk` (com-junkawasaki/root ADR-2609111500).
 
 Origin plane: babashka.org → `org-babashka`. Upstream README is at
 [`doc/UPSTREAM-README.md`](doc/UPSTREAM-README.md). Upstream base: tag
-`v1.4.208` = `4fff82e` in babashka/nbb. Upstream git history is **not** in this
+`v1.5.212` = `ea6683e` in babashka/nbb (rebased from `v1.4.208` = `4fff82e` on
+2026-09-11 -- see "Why 1.5.212" below). Upstream git history is **not** in this
 repository: GitHub refused the push because upstream commits touch
 `.github/workflows/ci.yml` and the workspace token has no `workflow` scope —
 and this workspace runs no GitHub Actions anyway (root ADR-2607300900), so
@@ -34,8 +35,36 @@ namespace from the classpath needed the probe.
 compiled bundle (`lib/nbb_core.js`); there is no hook to extend it. Measured
 2026-09-11: every `require` of a workspace namespace (`cheshire.core`,
 `babashka.process`, `scripts.nbb-compat`, `kotoba.lang.text` …) fails with
-`Could not find namespace` on 1.4.208 once the compat shims are `.cljk`; on this
+`Could not find namespace` on stock nbb once the compat shims are `.cljk`; on this
 build the same 9 PreToolUse hooks exit 0 with byte-identical hook sources.
+
+## Why 1.5.212 and not 1.4.208
+
+The first build of this fork (`33575ae`, 2026-09-11 morning) sat on `v1.4.208`.
+`kotoba-lang/amu` had been running on stock nbb `1.5.212`, and moving it onto the
+1.4.208 fork to recover from the `.cljk` rename made `amu check` **~1.45x slower**
+with the compiler source held fixed -- the engine was the only variable:
+
+```
+same amu tree (pre-rename source), K=384 buildbench workload, ABAB x3, one host
+  fork on 1.4.208    5695 / 5637 / 5457 ms
+  stock 1.5.212      3507 / 3728 / 3572 ms
+same engine patch rebased onto 1.5.212, amu post-rename tree, ABAB x3
+  fork on 1.5.212    3691 / 3893 / 3858 ms
+  fork on 1.4.208    5555 / 5325 / 5805 ms
+```
+
+The 1.4 -> 1.5 difference is upstream's newer SCI; the `.cljk` probe adds four
+`existsSync` calls per unresolved namespace and is not measurable against it.
+The numbers above are from a host at `load1` 22-37 and are a ratio, not a
+portable absolute. Re-measure with amu's `bin/amu check` on
+`kotoba-lang/buildbench`'s generated workload.
+
+Known on this base: upstream's `repl-test` (6 assertions in
+`script/nbb_repl_tests.clj`) errors on Node 26 with
+`ERR_USE_AFTER_CLOSE: readline was closed` when stdin is a closed pipe.
+Stock `nbb@1.5.212` from npm fails the same way on the same Node, so it is not
+this patch; the other 31 integration tests pass.
 
 ## What is committed
 
@@ -73,7 +102,7 @@ Both directions, same input, same tree:
 
 ```bash
 node cli.js some-script-requiring-a-cljk-namespace.cljk      # exit 0
-npx nbb@1.4.208 the-same-script.cljk                          # Could not find namespace
+npx nbb@1.5.212 the-same-script.cljk                          # Could not find namespace
 ```
 
 ## Not in scope
