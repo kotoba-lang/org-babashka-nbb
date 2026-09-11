@@ -18,7 +18,7 @@ the new tag and rebuild; the patch is 10 lines.
 
 ## The one patch
 
-`src/nbb/core.cljk` `find-file-on-classpath`. Upstream probes
+`src/nbb/core.cljs` `find-file-on-classpath`. Upstream probes
 `foo.cljs` → `foo.cljc` → `foo.clj`. This fork probes, in order:
 
 ```
@@ -61,7 +61,7 @@ portable absolute. Re-measure with amu's `bin/amu check` on
 `kotoba-lang/buildbench`'s generated workload.
 
 Known on this base: upstream's `repl-test` (6 assertions in
-`script/nbb_repl_tests.cljk`) errors on Node 26 with
+`script/nbb_repl_tests.clj`) errors on Node 26 with
 `ERR_USE_AFTER_CLOSE: readline was closed` when stdin is a closed pipe.
 Stock `nbb@1.5.212` from npm fails the same way on the same Node, so it is not
 this patch; the other 31 integration tests pass.

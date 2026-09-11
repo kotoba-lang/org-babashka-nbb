@@ -146,13 +146,13 @@
                (prn :nsss ns-name)
                (is (= 'user ns-name))))
       (.then (fn [_]
-               (nbb/load-file "test-scripts/script.cljk")))
+               (nbb/load-file "test-scripts/script.cljs")))
       (.catch (fn [err]
                 (println err (.-stack err))))
       (.then (fn [val]
                (is (= 6 val))))
       (.then (fn [_]
-               (nbb/load-string "(nbb.core/load-file \"test-scripts/script.cljk\")")))
+               (nbb/load-string "(nbb.core/load-file \"test-scripts/script.cljs\")")))
       (.then (fn [val]
                (is (= 6 val))))))
 
@@ -161,7 +161,7 @@
 (deftest-async args-test
   {:before (set! *print-fn* (constantly nil))
    :after (set! *print-fn* pf)}
-  (-> (main-with-args ["test-scripts/script.cljk"])
+  (-> (main-with-args ["test-scripts/script.cljs"])
       (.then (fn [res]
                (is (= 6 res))))
       (.then (fn [_]
@@ -169,7 +169,7 @@
       (.then (fn [res]
                (is (= 10 res))))
       (.then (fn [_]
-               (main-with-args["-e" "(nbb.core/load-file \"test-scripts/script.cljk\")"])))
+               (main-with-args["-e" "(nbb.core/load-file \"test-scripts/script.cljs\")"])))
       (.then (fn [res]
                (is (= 6 res))))))
 
@@ -184,23 +184,23 @@
   (str/replace s "\\" "/"))
 
 (deftest-async load-file-test
-  (-> (main-with-args ["test-scripts/load_file_test.cljk"])
+  (-> (main-with-args ["test-scripts/load_file_test.cljs"])
       (.then (fn [res]
                (let [f (normalize-filename (:file res))]
                  (is (path/isAbsolute f))
-                 (is (str/ends-with? f "test-scripts/loaded_by_load_file_test.cljk")))
+                 (is (str/ends-with? f "test-scripts/loaded_by_load_file_test.cljs")))
                (is (:loaded-by-load-file-test/loaded res))
                (is (= (:file res) (:file-via-dyn-var res)))
                (let [f (normalize-filename (:load-file-test-file-dyn-var res))]
                  (is (path/isAbsolute f))
-                 (is (str/ends-with? f "test-scripts/load_file_test.cljk" )))))))
+                 (is (str/ends-with? f "test-scripts/load_file_test.cljs" )))))))
 
 (deftest-async eval-string-test
   (-> (nbb/load-string "(+ 1 2 3)")
       (.then (fn [res]
                (is (= 6 res))))
       (.then (fn [_]
-               (main-with-args ["test-scripts/plet.cljk"])))
+               (main-with-args ["test-scripts/plet.cljs"])))
       (.then (fn [res]
                (is (= [1 2 "<!DOCTYPE html><html" 1] res))))))
 
@@ -313,7 +313,7 @@
                (is (true? val))))))
 
 (deftest-async require-macros-test
-  (-> (main-with-args ["test-scripts/require_macros.cljk"])
+  (-> (main-with-args ["test-scripts/require_macros.cljc"])
       (.then (fn [res]
                (is (= {:add 5 :subtract 1} res))))))
 
