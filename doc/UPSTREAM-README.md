@@ -179,7 +179,7 @@ Using `plet` this becomes:
 ```
 
 See the [puppeteer
-example](https://github.com/borkdude/nbb/blob/main/examples/puppeteer/example.cljs)
+example](https://github.com/borkdude/nbb/blob/main/examples/puppeteer/example.cljk)
 for the full code.
 
 Since v0.0.36, nbb includes [promesa](#promesa) which is a library to deal with
@@ -347,7 +347,7 @@ var. You can do that like this:
 
 Since nbb v0.1.0 [cljs-bean](https://github.com/mfikes/cljs-bean) is available.
 
-See the [example](examples/cljs-bean/example.cljs) for an example.
+See the [example](examples/cljs-bean/example.cljk) for an example.
 
 ## Js-interop
 
@@ -368,7 +368,7 @@ Most of this library is supported in nbb, except the following:
 - destructuring using `:syms`
 - property access using `.-x` notation. In nbb, you must use keywords.
 
-See the [example](examples/js-interop/example.cljs) of what is currently supported.
+See the [example](examples/js-interop/example.cljk) of what is currently supported.
 
 <!-- ## Prismatic/schema -->
 

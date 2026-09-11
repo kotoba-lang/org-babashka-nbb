@@ -11,7 +11,7 @@ Install `better-sqlite3` by running `npm install`.
 
 # example.cljs
 
-A `better-sqlite3`-based version of `examples/sqlite/example.cljs`.
+A `better-sqlite3`-based version of `examples/sqlite/example.cljk`.
 
 ```
 $ nbb example.cljs
