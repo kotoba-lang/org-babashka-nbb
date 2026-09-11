@@ -42,7 +42,7 @@
   (shell {:dir "examples/handlebars"} (if tu/windows?
                                         "npm.cmd install"
                                         "npm install"))
-  (is (str/includes? (:out (repl (slurp "examples/handlebars/example.cljk")
+  (is (str/includes? (:out (repl (slurp "examples/handlebars/example.cljs")
                                  "examples/handlebars"))
                      "Hello world!"))
   (testing "Recover from run-time error"
