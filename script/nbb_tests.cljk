@@ -72,26 +72,26 @@
 
 (deftest react-and-ink-test
   (tasks/shell {:dir "test-scripts/react-test"} (npm "install"))
-  (is (= "<div><a>1</a></div>" (nbb "test-scripts/react-test/dom-server-test.cljs")))
+  (is (= "<div><a>1</a></div>" (nbb "test-scripts/react-test/dom-server-test.cljk")))
   (testing "react is loaded first, then reagent"
-    (nbb {:out :inherit} "test-scripts/react-test/ink-test.cljs"))
+    (nbb {:out :inherit} "test-scripts/react-test/ink-test.cljk"))
   (testing "reagent is loaded first, then react"
-    (nbb {:out :inherit} "test-scripts/react-test/ink-test2.cljs"))
+    (nbb {:out :inherit} "test-scripts/react-test/ink-test2.cljk"))
   (is (= "<div data-reactroot=\"\"><p>Hi</p></div>"
-         (nbb "test-scripts/react-test/create-class-test.cljs"))))
+         (nbb "test-scripts/react-test/create-class-test.cljk"))))
 
 (deftest esm-libs-test
   (tasks/shell {:dir "test-scripts/esm-test"} (npm "install"))
-  (nbb {:out :inherit} "test-scripts/esm-test/script.cljs"))
+  (nbb {:out :inherit} "test-scripts/esm-test/script.cljk"))
 
 (deftest issue-80-test
   (testing "ns form can be evaluated multiple times"
     (tasks/shell {:dir "test-scripts/issue-80"} (npm "install"))
-    (nbb {:out :inherit} "test-scripts/issue-80/script.cljs")))
+    (nbb {:out :inherit} "test-scripts/issue-80/script.cljk")))
 
 (deftest chalk-test
   (tasks/shell {:dir "examples/chalk"} (npm "install"))
-  (nbb {:out :inherit} "examples/chalk/example.cljs"))
+  (nbb {:out :inherit} "examples/chalk/example.cljk"))
 
 (defn make-prog [exprs]
   (str/join "\n" (map pr-str exprs)))
@@ -222,7 +222,7 @@
 
 (deftest js-interop-test
   (is (= expected-js-interop-output
-         (normalize-interop-output (nbb* "examples/js-interop/example.cljs")))))
+         (normalize-interop-output (nbb* "examples/js-interop/example.cljk")))))
 
 (def expected-cljs-bean-output (normalize-interop-output "{:y 1, :someFn #object[-]}
 1
@@ -241,14 +241,14 @@
 
 (deftest cljs-bean-test
   (is (= expected-cljs-bean-output
-         (normalize-interop-output (nbb* "examples/cljs-bean/example.cljs")))))
+         (normalize-interop-output (nbb* "examples/cljs-bean/example.cljk")))))
 
 (deftest transit-test
   (is (= {:fruits [:apple :banana :pear]}
-         (nbb "test-scripts/transit.cljs" (pr-str {:fruits [:apple :banana :pear]})))))
+         (nbb "test-scripts/transit.cljk" (pr-str {:fruits [:apple :banana :pear]})))))
 
 (deftest error-test
-  (let [err (-> (process ["node" "lib/nbb_main.js" "test-scripts/error.cljs"]
+  (let [err (-> (process ["node" "lib/nbb_main.js" "test-scripts/error.cljk"]
                          {:out :string
                           :err :string})
                 deref
@@ -294,7 +294,7 @@
     (is (str/includes? o "BAR"))))
 
 (deftest local-root-test
-  (let [o (nbb* "test-scripts/local-root-test/run.cljs")]
+  (let [o (nbb* "test-scripts/local-root-test/run.cljk")]
     (is (str/includes? o "{:a 1}"))))
 
 (defn parse-opts [opts]
