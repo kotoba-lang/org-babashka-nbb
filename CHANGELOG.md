@@ -4,6 +4,49 @@ For a list of breaking changes, check [here](#breaking-changes).
 
 [Nbb](https://github.com/babashka/nbb): Scripting in Clojure on Node.js using [SCI](https://github.com/babashka/sci)
 
+## 1.5.212 (2026-08-18)
+
+- [#416](https://github.com/babashka/nbb/issues/416): Fix problem with `prn` in nREPL
+- Bump SCI: bumps edamame to `1.6.43`
+- Bump `babashka.cli` to `0.12.86`
+- Bump sci.configs
+
+## 1.5.211 (2026-07-14)
+
+Highlights:
+
+### ClojureScript: JIT compilation.
+
+Nbb now bundles a SCI that compiles interpreted function bodies to JavaScript at runtime via `js/Function`. This is enabled by default. Loops, numerical computations and JS interop become much faster due to this.
+
+``` clojure
+$ nbb -e "(time (loop [i 0 j 10000000] (if (zero? j) i (recur (inc i) (dec j)))))"
+;; interpreter:  ~175 ms
+;; JIT (default):  ~7 ms   — over 20x faster
+```
+
+### Babashka.fs
+
+Nbb now ships [babashka.fs](https://github.com/babashka/fs) as a built-in library. The full file system API (`glob`, `copy`, `move`, `create-dirs`, `delete-tree`, `with-temp-dir`, path helpers and more) is available via `(require '[babashka.fs :as fs])`, matching Babashka.
+
+### Better CLJS deftype/defrecord support
+
+Support implementing CLJS protocols (e.g. `ILookup`, etc) on `deftype` and `defrecord`.
+
+For complete changelogs, see [here](https://github.com/babashka/nbb/blob/main/CHANGELOG.md).
+
+SCI got pretty complete now when it comes to CLJS capabilities so I don't see a reason why nbb couldn't run existing CLJS libraries unless they relied on very specific macros that require the JVM. So if you have anything that doesn't run, challenge welcome in [#nbb](https://app.slack.com/client/T03RZGPFR/C029PTWD3HR)!
+
+Other updates:
+
+- Bump SCI to `0.15.56` (ClojureScript JIT, see above)
+- Support [editscript](https://github.com/juji-io/editscript): CLJS `deftype`/`defrecord` field interop, `set!` on `^:unsynchronized-mutable` fields, add `cljs.core` type classes like `PersistentHashMap`, `write-all` and `goog.math.Long`
+- Bump `babashka.cli` to 0.12.76
+
+## 1.4.209 (2026-07-12)
+
+- Bump SCI to 0.14.55
+
 ## 1.4.208 (2026-06-12)
 
 - [#410](https://github.com/babashka/nbb/issues/410): fix regression where a `defrecord`/`deftype` type symbol referenced via a namespace alias (e.g. `(instance? r/Foo x)`) failed to resolve

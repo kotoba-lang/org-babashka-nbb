@@ -50,6 +50,21 @@
   (testing "nil doesn't print return value"
     (is (= "6\n" (nbb* "-e" "(prn (+ 1 2 3))")))))
 
+(deftest top-level-do-test
+  (testing "forms in a do are evaluated before the next top level form"
+    (is (= "1\n2\n3\n4\n5\n"
+           (nbb* "-e" "(do (prn 1) (prn 2)) (prn 3) (do (prn 4) (do (prn 5)))"))))
+  (testing "a do form waits for async code in its body"
+    (is (= ":a\n:b\n:c\n"
+           (nbb* "-e" "(require '[promesa.core :as p])
+                       (do (prn :a) (p/delay 100) (prn :b))
+                       (prn :c)"))))
+  (testing "a do form returns the value of its last form"
+    (is (= :foo (nbb "-e" "(do 1 :foo)"))))
+  (testing "an ns form in a do applies to the rest of the body"
+    (is (= "\"foo\"\n\"foo\"\n"
+           (nbb* "-e" "(do (ns foo) (prn (str *ns*))) (prn (str *ns*))")))))
+
 (defn npm [cmd]
   (str (if windows?
          "npm.cmd" "npm")
@@ -111,8 +126,27 @@
     (is (= "success"
          (nbb {:dir "test-scripts/paths-test"} "runner.cljs"))))
   (testing "project dir is removed from classpath when `:paths` present in `nbb.edn`"
+    (println "(the following \"Could not find namespace: runner\" error is expected)")
+    ;; :err :string swallows the nbb subprocess stderr so the expected error
+    ;; doesn't leak into the test output and look like a real failure
     (is (thrown? Exception
-                 (nbb {:dir "test-scripts/paths-test"} "src/project_dir_not_on_classpath.cljs")))))
+                 (nbb {:dir "test-scripts/paths-test" :err :string}
+                      "src/project_dir_not_on_classpath.cljs")))))
+
+(deftest editscript-test
+  (let [deps '{io.github.juji-io/editscript {:git/sha "b493ccf2e987fed84a05badb2626eebae4b91328"}}
+        _ (deps/add-deps {:deps deps})
+        cp (cp/get-classpath)]
+    (is (= [[[[:a :b] :r 2] [[:a :c 3] :+ 4] [[:x] :-] [[:y] :+ 6]] true true]
+           (nbb "--classpath" cp
+                "-e"
+                "(require '[editscript.core :as e])
+                 (let [a {:a {:b 1 :c [1 2 3]} :x 5}
+                       b {:a {:b 2 :c [1 2 3 4]} :y 6}
+                       d (e/diff a b)]
+                   [(e/get-edits d)
+                    (= b (e/patch a d))
+                    (= b (e/patch a (e/diff a b {:algo :quick})))])")))))
 
 (deftest invoked-file-test
   (testing "calling as a script"

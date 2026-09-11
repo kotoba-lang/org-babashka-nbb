@@ -16,11 +16,14 @@
                             (str/starts-with? "win")))
           (when *test* (println "Tests are enabled.."))
           (defn wrap-cmd [cmd]
+            ;; :bundled carries babashka/fs (see deps.edn); it is on every
+            ;; shadow-cljs invocation, so the build sees what upstream's
+            ;; top-level :deps gave it.
             (if *test*
               (str (str/replace cmd
-                                "-M" "-M:test")
+                                "-M" "-M:bundled:test")
                    " --config-merge shadow-tests.edn")
-              cmd))
+              (str/replace cmd "-M" "-M:bundled")))
           (defn replace-version [file old-version new-version]
             (spit file
                   (-> (slurp file)

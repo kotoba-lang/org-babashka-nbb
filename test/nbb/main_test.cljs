@@ -68,12 +68,62 @@
       (.then (fn [v]
                (is (true? v))))))
 
+(deftest-async native-protocols-test
+  (-> (nbb/load-string "
+(deftype Box [m]
+  ILookup
+  (-lookup [_ k] (get m k))
+  (-lookup [_ k nf] (get m k nf))
+  IAssociative
+  (-contains-key? [_ k] (contains? m k))
+  (-assoc [_ k v] (->Box (assoc m k v)))
+  ICounted
+  (-count [_] (count m))
+  IDeref
+  (-deref [_] m))
+(deftype U [])
+(extend-type U ICounted (-count [_] 42))
+(def b (->Box {:a 1}))
+(def b2 (assoc b :b 2))
+[(get b :a) (get b :z :nf) (count b2) @b2 (satisfies? ILookup b) (count (->U))]")
+      (.then (fn [v]
+               (is (= [1 :nf 2 {:a 1 :b 2} true 42] v))))))
+
+(deftest-async native-protocols-host-side-test
+  (-> (nbb/load-string "
+(deftype Box [m]
+  ILookup
+  (-lookup [_ k] (get m k))
+  IDeref
+  (-deref [_] m))
+(->Box {:a 1})")
+      (.then (fn [b]
+               (testing "host get and deref dispatch into nbb impls"
+                 (is (= 1 (get b :a)))
+                 (is (= {:a 1} @b)))))))
+
 (deftest-async dynamic-require-test
   (-> (nbb/load-string "(when (odd? 3)
                           (require '[promesa.core :as p]))
                         (p/do (p/delay 20) :hello)")
       (.then (fn [v]
                (is (= :hello v))))))
+
+(deftest-async babashka-fs-test
+  (-> (nbb/load-string "(require '[babashka.fs :as bfs])
+                        [(bfs/exists? \"deps.edn\") (bfs/file-name \"/a/b.txt\")]")
+      (.then (fn [v]
+               (is (= [true "b.txt"] v))))))
+
+(deftest-async babashka-fs-with-temp-dir-test
+  (-> (nbb/load-string "(require '[babashka.fs :as bfs])
+                        (let [captured (atom nil)]
+                          (bfs/with-temp-dir [d]
+                            (reset! captured (str d))
+                            {:inside (bfs/exists? d)})
+                          {:inside true :after (bfs/exists? @captured)})")
+      (.then (fn [v]
+               (is (= {:inside true :after false} v))))))
 
 (deftest-async as-alias
   (-> (nbb/load-string "(require '[rando.ns :as-alias dude]) ::dude/foo")

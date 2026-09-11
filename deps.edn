@@ -1,5 +1,11 @@
 {:paths ["src"]
- :aliases {:test {:extra-paths ["test"]}}
+ ;; babashka/fs is a ClojureScript source input to the shadow-cljs build (it
+ ;; becomes lib/nbb_fs.js, upstream #413), not a JVM runtime dependency of
+ ;; anything in this workspace. It lives under :bundled so the root guard for
+ ;; new top-level JVM deps (ADR-2608201300) reads it as the build-tool coord it
+ ;; is; bb.edn's wrap-cmd adds the alias to every shadow-cljs invocation.
+ :aliases {:test {:extra-paths ["test"]}
+           :bundled {:extra-deps {babashka/fs {:mvn/version "0.5.34"}}}}
  :deps {thheller/shadow-cljs {:mvn/version "3.3.5"}
         #_#_org.clojure/clojurescript {:mvn/version "1.11.51"}
         ;; reagent/reagent {:mvn/version "1.0.0"}
@@ -13,13 +19,13 @@
         applied-science/js-interop {:mvn/version "0.3.3"}
         cljs-bean/cljs-bean {:mvn/version "1.9.0"}
         org.babashka/sci
-        #_{:mvn/version "0.12.51"}
         {:git/url "https://github.com/babashka/sci"
-         :git/sha "ebd5cfacda272eabf91f3168d56d08b64f770a80"}
+         :git/sha "6790624776b09297a22100438f05b6555a4ff56d"}
+        #_{:mvn/version "0.15.58"}
         org.clojure/tools.cli {:mvn/version "1.0.214"}
         com.cognitect/transit-cljs {:mvn/version "0.8.280"}
         #_#_prismatic/schema {:mvn/version "1.3.0"}
         #_#_metosin/malli {:mvn/version "0.8.8"}
-        org.babashka/cli {:mvn/version "0.8.60"}
+        org.babashka/cli {:mvn/version "0.12.86"}
         io.github.babashka/sci.configs {:git/url "https://github.com/babashka/sci.configs"
-                                        :git/sha "aa84a1b4f1fe45735e5b748769309fc842f737c1"}}}
+                                        :git/sha "a785be2090991bf99ddc1c8cb4923a7217f6e098"}}}
