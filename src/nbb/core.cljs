@@ -12,6 +12,7 @@
    [edamame.core]
    [goog.object :as gobj]
    [nbb.classpath :as cp]
+   [nbb.cljk :as cljk]
    [nbb.common :refer [core-ns]]
    [nbb.error :as nbb.error]
    [nbb.impl.sci :as sci-cfg]
@@ -194,8 +195,15 @@
 (defn libname->internal-name [libname]
   (-> libname munge munged->internal))
 
+(defn cljk-roots []
+  (or (get-in @opts [:config :cljk-roots])
+      (when-let [roots (.-NBB_CLJK_ROOTS (.-env process))]
+        (js->clj (js/JSON.parse roots)))))
+
 (defn find-file-on-classpath [munged]
-  (let [file (str/replace (str munged) #"\." "/")
+  (if-let [roots (cljk-roots)]
+    (cljk/resolve-source roots @cp/classpath-entries munged)
+    (let [file (str/replace (str munged) #"\." "/")
         ;; `.cljk` is Kotoba's Clojure-shaped source surface (com-junkawasaki/root
         ;; ADR-2609111500): `foo.cljk` is the plain rename, `foo.cljs.cljk` /
         ;; `foo.cljc.cljk` / `foo.clj.cljk` are the collision spellings the
@@ -212,7 +220,7 @@
                       (let [f (path/resolve dir f)]
                         (when (fs/existsSync f)
                           (reduced f))))
-                    files)) nil dirs)))
+                    files)) nil dirs))))
 
 ;; Reagent is loaded according to following scheme:
 ;; reagent.core => ./nbb_reagent.js + "react"
@@ -528,6 +536,8 @@
 (defn load-file
   [f]
   (let [sci-file (path/resolve f)
+        _ (when-let [roots (cljk-roots)]
+            (cljk/validate-entry! roots sci-file))
         sci-ns @sci/ns]
     (-> (slurp f)
         (.then #(sci/binding [sci/file sci-file

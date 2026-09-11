@@ -1,3 +1,8 @@
+## Origin-aware deployment mode
+
+- Add opt-in manifest-validated canonical source resolution and reload.
+- Resolve the directory for explicit configuration files.
+
 # Changelog
 
 For a list of breaking changes, check [here](#breaking-changes).

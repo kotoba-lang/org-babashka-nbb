@@ -112,3 +112,16 @@ Kotoba (`.kotoba`, admitted `.cljk`) go through `kbb`'s native / js backends;
 this engine is the SCI-on-Node host for the Clojure-shaped operational surface
 that predates them (hooks, gates, bots), until each is migrated as a whole
 component.
+
+## Explicit origin-aware canonical source mode
+
+For an origin-verified deployment, set `NBB_CLJK_ROOTS` to a JSON array of
+absolute repository roots containing `cljk-origin.edn`, or set `:cljk-roots`
+in explicit nbb config. Existing kbb engine behavior remains the default.
+The opt-in mode validates canonical entrypoints and transitive require/reload,
+selects declared `.cljs` before `.cljc`, and rejects unknown, ambiguous or
+Node-incompatible candidates. Manifests are re-read on resolution; invalid
+first roots do not fall through. Source paths/bytes are preserved.
+
+Run `node cli.js test/cljk_loader_test.cljs` against the committed engine.
+This is SCI compatibility, not a claim of Kotoba-native migration.
