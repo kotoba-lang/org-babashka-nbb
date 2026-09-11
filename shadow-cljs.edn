@@ -1,0 +1,72 @@
+{:deps true
+ :builds
+ {:modules
+  {:js-options {;; don't bundle any npm libs
+                :js-provider :import}
+   :compiler-options {:infer-externs :auto}
+   :target :esm
+   :runtime :node
+   :output-dir "lib"
+   :devtools {:enabled false}
+   :modules
+   {:nbb_core {:init-fn nbb.core/init}
+    :nbb_goog_string {:init-fn nbb.impl.gstring/init
+                      :depends-on #{:nbb_core}}
+    :nbb_goog_crypt {:init-fn nbb.impl.gcrypt/init
+                     :depends-on #{:nbb_core}
+                     :entries [goog.crypt]}
+    :nbb_impl_main {:init-fn nbb.impl.main/init
+                    :depends-on #{:nbb_core :nbb_api}}
+    :nbb_main {:init-fn nbb.main/main
+               :depends-on #{:nbb_impl_main :nbb_core :nbb_api}}
+    :nbb_api {:exports {loadFile nbb.api/loadFile
+                        loadString nbb.api/loadString
+                        getClassPath nbb.api/getClassPath
+                        addClassPath nbb.api/addClassPath
+                        version nbb.api/version
+                        registerModule nbb.api/registerModule
+                        printErrorReport nbb.api/printErrorReport}
+              :depends-on #{:nbb_core}}
+    :nbb_reagent {:init-fn nbb.impl.reagent/init
+                  :entries [reagent.core]
+                  :depends-on #{:nbb_core}}
+    :nbb_reagent_dom_server {:init-fn nbb.impl.reagent.dom.server/init
+                             :depends-on #{:nbb_core :nbb_reagent}}
+    :nbb_promesa {:init-fn nbb.impl.promesa/init
+                  :entries [promesa.core]
+                  :depends-on #{:nbb_core}}
+
+    :nbb_js_interop {:init-fn nbb.impl.js-interop/init
+                     :depends-on #{:nbb_core}}
+
+    :nbb_cljs_bean {:init-fn nbb.impl.cljs-bean/init
+                    :depends-on #{:nbb_core}}
+
+    :nbb_pprint {:init-fn nbb.pprint/init
+                 :depends-on #{:nbb_core}}
+    :nbb_tools_cli {:init-fn nbb.impl.tools-cli/init
+                    :depends-on #{:nbb_core :nbb_goog_string}}
+    :nbb_transit {:init-fn nbb.impl.transit/init
+                  :depends-on #{:nbb_core}}
+    :nbb_nrepl_server {:init-fn nbb.impl.nrepl-server/init
+                       :depends-on #{:nbb_core :nbb_api :nbb_goog_string :nbb_pprint}}
+    :nbb_repl {:init-fn nbb.impl.repl/init
+               :depends-on #{:nbb_core :nbb_api}}
+    :nbb_test {:init-fn nbb.impl.test/init
+               :depends-on #{:nbb_core}}
+    :nbb_data {:init-fn nbb.impl.data/init
+               :depends-on #{:nbb_core}}
+    :nbb_math {:init-fn nbb.impl.math/init
+               :depends-on #{:nbb_core}}
+    :nbb_bundler {:init-fn nbb.impl.bundler/init
+                  :depends-on #{:nbb_core :nbb_goog_string}}
+    :nbb_deps {:init-fn nbb.impl.deps/init
+               :depends-on #{:nbb_core}}
+    :nbb_zip {:init-fn nbb.impl.zip/init
+              :depends-on #{:nbb_core}}
+    :nbb_spec {:init-fn nbb.impl.spec/init
+               :depends-on #{:nbb_core :nbb_pprint}}}
+   :build-hooks [(shadow.cljs.build-report/hook
+                  {:output-to "report.html"})
+                 (nbb.impl.shadow-hooks/hook
+                      {})]}}}

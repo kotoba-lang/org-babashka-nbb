@@ -1,0 +1,7 @@
+{
+  "name": "print-cli-args",
+  "version": "0.0.2",
+  "dependencies": {
+    "nbb": "0.1.6"
+  }
+}
