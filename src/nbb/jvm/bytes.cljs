@@ -147,7 +147,7 @@
     (when-not (legal-name? s) (throw (IllegalCharsetNameException. s)))
     (or (get by-name (str/lower-case s)) (throw (UnsupportedCharsetException. s)))))
 
-(defn- ->charset
+(defn ->charset
   "A Charset or a charset name (the String overloads throw the checked
   UnsupportedEncodingException instead)."
   [x]
@@ -237,7 +237,10 @@
              (and (array? x) (every? string? x)) (.join x "") ; char[]
              :else (decode x UTF_8)))
   ([b cs] (decode b (->charset cs)))
-  ([b off n] (new-string b off n UTF_8))
+  ([b off n]
+   (if (and (array? b) (every? string? b)) ; char[] (nbb.jvm.chars)
+     (do (check-range (alength b) off n) (.join (.slice b off (+ off n)) ""))
+     (new-string b off n UTF_8)))
   ([b off n cs]
    (let [v (u8 b)]
      (check-range (.-length v) off n)

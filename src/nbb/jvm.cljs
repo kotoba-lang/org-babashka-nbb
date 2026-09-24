@@ -19,16 +19,22 @@
   answer): Long/MAX_VALUE and Long/MIN_VALUE (not representable in a double),
   instance? checks on Long/Integer/Double (1 and 1.0 are the same JS value),
   java.lang.Error / AssertionError, NullPointerException / ClassCastException
-  (the host throws TypeError / Error or nothing at all for those situations),
-  streams (io/reader, io/input-stream, io/copy, ...).
+  (the host throws TypeError / Error or nothing at all for those situations).
   Round 2 lives in nbb.jvm.* next to this file, same rule: byte[] as a
   signed Int8Array with charsets, String, Base64, ByteArray streams and
   MessageDigest (nbb.jvm.bytes); java.lang.Math extras and BigInteger
   (nbb.jvm.math); java.net.URI / URLEncoder (nbb.jvm.net); java.nio.file
   (nbb.jvm.nio); java.time basics (nbb.jvm.time); Ed25519 keys and
   signatures, HMAC, SecureRandom (nbb.jvm.security); clojure.java.shell and
-  babashka.process (nbb.jvm.process). Each namespace docstring lists what it
-  deliberately leaves out.
+  babashka.process (nbb.jvm.process). Round 3, same rule: java.io streams,
+  readers and writers over files with clojure.java.io reader / writer /
+  input-stream / output-stream / copy, line-seq and a working with-open
+  (nbb.jvm.io); java.lang.Character and char[] (nbb.jvm.chars);
+  java.util.UUID (nbb.jvm.uuid); bigint (nbb.jvm.math); Class/forName and
+  class (nbb.jvm.lang). Each namespace docstring lists what it deliberately
+  leaves out; java.net.http is left out entirely (a synchronous client
+  cannot reach a server in the same process, which is how the suites that
+  import it use it).
   Known, documented deviations of what IS here: Long/parseLong of a value
   beyond 2^53 returns the nearest double; format accepts an integral value for
   %f/%e (the JVM throws for a Long there; a JS number cannot say which it
@@ -347,6 +353,16 @@
   reads those like the JVM's slurp of an InputStream."
   (atom (fn [_] nil)))
 
+(def stream-slurp
+  "Set by nbb.jvm.io: (f opts) -> the text of a Reader / InputStream f
+  (closing it, as the JVM's slurp does), or nil when f is not one."
+  (atom (fn [_ _] nil)))
+
+(def stream-spit
+  "Set by nbb.jvm.io: (f content opts) -> true when f is a Writer /
+  OutputStream it wrote (str content) to and closed, else nil."
+  (atom (fn [_ _ _] nil)))
+
 (defn- file-methods []
   {"getPath" (fn [] (this-as ^js this (file-path this)))
    "toString" (fn [] (this-as ^js this (file-path this)))
@@ -461,18 +477,22 @@
 
 (defn slurp*
   "clojure.core/slurp, synchronous, relative to the working directory."
-  [f & {:keys [encoding] :as _opts}]
+  [f & {:keys [encoding] :as opts}]
   (if-let [^js b (@input-stream-bytes f)]
     (.toString (js/Buffer.from (.-buffer b) (.-byteOffset b) (.-length b)) (charset->node encoding))
+  (if-let [text (@stream-slurp f opts)]
+    text
   (let [p (io-path f)
         enc (charset->node encoding)]
     (try (fs/readFileSync p enc)
          (catch :default ^js e
-           (if (.-code e) (throw (fnf (->path-string f) e)) (throw e)))))))
+           (if (.-code e) (throw (fnf (->path-string f) e)) (throw e))))))))
 
 (defn spit*
   "clojure.core/spit: (str content) to f, :append true appends."
-  [f content & {:keys [append encoding]}]
+  [f content & {:keys [append encoding] :as opts}]
+  (if (@stream-spit f content opts)
+    nil
   (let [p (io-path f)
         enc (charset->node encoding)]
     (try (if append
@@ -480,7 +500,7 @@
            (fs/writeFileSync p (str content) enc))
          (catch :default ^js e
            (if (.-code e) (throw (fnf (->path-string f) e)) (throw e))))
-    nil))
+    nil)))
 
 ;; ---------------------------------------------------------------------------
 ;; clojure.java.io (the file-level subset)
