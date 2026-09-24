@@ -16,6 +16,13 @@
    [nbb.common :refer [core-ns]]
    [nbb.error :as nbb.error]
    [nbb.jvm :as jvm]
+   [nbb.jvm.bytes :as jvm-bytes]
+   [nbb.jvm.math :as jvm-math]
+   [nbb.jvm.net :as jvm-net]
+   [nbb.jvm.nio :as jvm-nio]
+   [nbb.jvm.process :as jvm-process]
+   [nbb.jvm.security :as jvm-security]
+   [nbb.jvm.time :as jvm-time]
    [nbb.impl.sci :as sci-cfg]
    [sci.core :as sci]
    [sci.ctx-store :as ctx]
@@ -671,17 +678,28 @@
 
 (def main-ns (sci/create-ns 'clojure.main))
 
-;; JVM-compatibility scaffolding (src/nbb/jvm.cljs): the host names JVM test
-;; suites reach for first, so they run on this engine and the fleet codemods
-;; can then remove them from the sources. See that namespace's docstring for
-;; what is deliberately NOT shimmed.
+;; JVM-compatibility scaffolding (src/nbb/jvm.cljs, round 2 in src/nbb/jvm/):
+;; the host names JVM test suites reach for first, so they run on this engine
+;; and the fleet codemods can then remove them from the sources. See those
+;; namespaces' docstrings for what is deliberately NOT shimmed.
 (jvm/install!)
+(jvm-bytes/install!)
+(jvm-nio/install!)
 (def io-ns (sci/create-ns 'clojure.java.io nil))
 (def jvm-core-vars
   {'slurp (sci/new-var 'slurp jvm/slurp* {:ns core-ns :doc "Reads the file f (path string, java.io.File, file: URL) synchronously; opts :encoding."})
    'spit (sci/new-var 'spit jvm/spit* {:ns core-ns :doc "Writes (str content) to f; opts :append :encoding."})
    'format (sci/new-var 'format jvm/format* {:ns core-ns :doc "java.util.Formatter subset: %s %b %c %d %o %x %f %e %n %%."})
    'ex-cause (sci/new-var 'ex-cause jvm/ex-cause* {:ns core-ns})
+   ;; round 2 (src/nbb/jvm/bytes.cljs, math.cljs): byte[] is a signed Int8Array
+   'byte-array (sci/new-var 'byte-array jvm-bytes/byte-array* {:ns core-ns})
+   'bytes? (sci/new-var 'bytes? jvm-bytes/byte-array? {:ns core-ns})
+   'bytes (sci/new-var 'bytes jvm-bytes/bytes* {:ns core-ns})
+   'byte (sci/new-var 'byte jvm-bytes/byte* {:ns core-ns})
+   'unchecked-byte (sci/new-var 'unchecked-byte jvm-bytes/unchecked-byte* {:ns core-ns})
+   'aset-byte (sci/new-var 'aset-byte jvm-bytes/aset-byte* {:ns core-ns})
+   'biginteger (sci/new-var 'biginteger jvm-math/biginteger {:ns core-ns})
+   'iterator-seq (sci/new-var 'iterator-seq jvm-bytes/iterator-seq* {:ns core-ns})
    'ExceptionInfo ExceptionInfo})
 (def jvm-io-namespace
   {'file (sci/new-var 'file jvm/io-file {:ns io-ns})
@@ -691,6 +709,27 @@
    'make-parents (sci/new-var 'make-parents jvm/make-parents {:ns io-ns})
    'delete-file (sci/new-var 'delete-file jvm/delete-file {:ns io-ns})
    'resource (sci/new-var 'resource jvm/resource {:ns io-ns})})
+
+(def sh-ns (sci/create-ns 'clojure.java.shell nil))
+(def sh-dir-var (sci/new-dynamic-var '*sh-dir* nil {:ns sh-ns}))
+(def sh-env-var (sci/new-dynamic-var '*sh-env* nil {:ns sh-ns}))
+(def jvm-shell-namespace
+  {'sh (sci/new-var 'sh (fn [& args] (apply jvm-process/sh* @sh-dir-var @sh-env-var args)) {:ns sh-ns})
+   '*sh-dir* sh-dir-var
+   '*sh-env* sh-env-var
+   'with-sh-dir (sci/new-macro-var 'with-sh-dir
+                                   (fn [_ _ dir & forms] (list* 'binding ['clojure.java.shell/*sh-dir* dir] forms))
+                                   {:ns sh-ns})
+   'with-sh-env (sci/new-macro-var 'with-sh-env
+                                   (fn [_ _ env & forms] (list* 'binding ['clojure.java.shell/*sh-env* env] forms))
+                                   {:ns sh-ns})})
+(def bp-ns (sci/create-ns 'babashka.process nil))
+(def jvm-babashka-process-namespace
+  {'process (sci/new-var 'process jvm-process/process {:ns bp-ns})
+   'shell (sci/new-var 'shell jvm-process/shell {:ns bp-ns})
+   'sh (sci/new-var 'sh jvm-process/sh-bb {:ns bp-ns})
+   'check (sci/new-var 'check jvm-process/check {:ns bp-ns})
+   'tokenize (sci/new-var 'tokenize jvm-process/tokenize {:ns bp-ns})})
 
 (ctx/reset-ctx!
  (sci/init
@@ -740,6 +779,8 @@
                                'write-all (sci/copy-var write-all core-ns)}
                               jvm-core-vars)
                 'clojure.java.io jvm-io-namespace
+                'clojure.java.shell jvm-shell-namespace
+                'babashka.process jvm-babashka-process-namespace
                 'cljs.reader {'read-string (sci/copy-var edn/read-string (sci/create-ns 'cljs.reader))}
                 'clojure.main {'repl-requires (sci/copy-var
                                                repl-requires
@@ -771,7 +812,13 @@
               'goog.object (clj->js goog-object-ns)
               'ExceptionInfo ExceptionInfo
               'Math js/Math}
-             (jvm/classes))
+             (jvm/classes)
+             (jvm-bytes/classes)
+             (jvm-math/classes)
+             (jvm-net/classes)
+             (jvm-nio/classes)
+             (jvm-security/classes)
+             (jvm-time/classes))
    :unrestricted true}))
 
 (def old-require (sci/eval-form (ctx/get-ctx) 'require))
