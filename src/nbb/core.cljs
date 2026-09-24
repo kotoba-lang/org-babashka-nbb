@@ -17,12 +17,16 @@
    [nbb.error :as nbb.error]
    [nbb.jvm :as jvm]
    [nbb.jvm.bytes :as jvm-bytes]
+   [nbb.jvm.chars :as jvm-chars]
+   [nbb.jvm.io :as jvm-io]
+   [nbb.jvm.lang :as jvm-lang]
    [nbb.jvm.math :as jvm-math]
    [nbb.jvm.net :as jvm-net]
    [nbb.jvm.nio :as jvm-nio]
    [nbb.jvm.process :as jvm-process]
    [nbb.jvm.security :as jvm-security]
    [nbb.jvm.time :as jvm-time]
+   [nbb.jvm.uuid :as jvm-uuid]
    [nbb.impl.sci :as sci-cfg]
    [sci.core :as sci]
    [sci.ctx-store :as ctx]
@@ -678,13 +682,16 @@
 
 (def main-ns (sci/create-ns 'clojure.main))
 
-;; JVM-compatibility scaffolding (src/nbb/jvm.cljs, round 2 in src/nbb/jvm/):
+;; JVM-compatibility scaffolding (src/nbb/jvm.cljs, rounds 2-3 in src/nbb/jvm/):
 ;; the host names JVM test suites reach for first, so they run on this engine
 ;; and the fleet codemods can then remove them from the sources. See those
 ;; namespaces' docstrings for what is deliberately NOT shimmed.
 (jvm/install!)
 (jvm-bytes/install!)
 (jvm-nio/install!)
+(jvm-chars/install!)
+(jvm-uuid/install!)
+(jvm-io/install!)
 (def io-ns (sci/create-ns 'clojure.java.io nil))
 (def jvm-core-vars
   {'slurp (sci/new-var 'slurp jvm/slurp* {:ns core-ns :doc "Reads the file f (path string, java.io.File, file: URL) synchronously; opts :encoding."})
@@ -700,6 +707,14 @@
    'aset-byte (sci/new-var 'aset-byte jvm-bytes/aset-byte* {:ns core-ns})
    'biginteger (sci/new-var 'biginteger jvm-math/biginteger {:ns core-ns})
    'iterator-seq (sci/new-var 'iterator-seq jvm-bytes/iterator-seq* {:ns core-ns})
+   ;; round 3 (src/nbb/jvm/chars.cljs, io.cljs, math.cljs): char[] is a JS
+   ;; array of one-unit strings; bigint is a number within 2^53
+   'char-array (sci/new-var 'char-array jvm-chars/char-array* {:ns core-ns})
+   'aset-char (sci/new-var 'aset-char jvm-chars/aset-char* {:ns core-ns})
+   'char (sci/new-var 'char jvm-chars/char* {:ns core-ns})
+   'bigint (sci/new-var 'bigint jvm-math/bigint {:ns core-ns})
+   'line-seq (sci/new-var 'line-seq jvm-io/line-seq* {:ns core-ns})
+   'with-open (sci/new-macro-var 'with-open jvm-io/with-open* {:ns core-ns})
    'ExceptionInfo ExceptionInfo})
 (def jvm-io-namespace
   {'file (sci/new-var 'file jvm/io-file {:ns io-ns})
@@ -708,7 +723,30 @@
    'as-url (sci/new-var 'as-url jvm/as-url {:ns io-ns})
    'make-parents (sci/new-var 'make-parents jvm/make-parents {:ns io-ns})
    'delete-file (sci/new-var 'delete-file jvm/delete-file {:ns io-ns})
-   'resource (sci/new-var 'resource jvm/resource {:ns io-ns})})
+   'resource (sci/new-var 'resource jvm/resource {:ns io-ns})
+   ;; round 3 (src/nbb/jvm/io.cljs): synchronous streams over files
+   'reader (sci/new-var 'reader jvm-io/reader {:ns io-ns})
+   'writer (sci/new-var 'writer jvm-io/writer {:ns io-ns})
+   'input-stream (sci/new-var 'input-stream jvm-io/input-stream {:ns io-ns})
+   'output-stream (sci/new-var 'output-stream jvm-io/output-stream {:ns io-ns})
+   'copy (sci/new-var 'copy jvm-io/copy {:ns io-ns})})
+
+(def jvm-classes
+  (merge (jvm/classes)
+         (jvm-bytes/classes)
+         (jvm-math/classes)
+         (jvm-net/classes)
+         (jvm-nio/classes)
+         (jvm-security/classes)
+         (jvm-time/classes)
+         (jvm-chars/classes)
+         (jvm-uuid/classes)
+         (jvm-io/classes)
+         (jvm-lang/classes)))
+
+(def jvm-class-class
+  ;; Class/forName answers from the classes registered above
+  (jvm-lang/class-object jvm-classes))
 
 (def sh-ns (sci/create-ns 'clojure.java.shell nil))
 (def sh-dir-var (sci/new-dynamic-var '*sh-dir* nil {:ns sh-ns}))
@@ -812,18 +850,20 @@
               'goog.object (clj->js goog-object-ns)
               'ExceptionInfo ExceptionInfo
               'Math js/Math}
-             (jvm/classes)
-             (jvm-bytes/classes)
-             (jvm-math/classes)
-             (jvm-net/classes)
-             (jvm-nio/classes)
-             (jvm-security/classes)
-             (jvm-time/classes))
+             jvm-classes
+             {'Class jvm-class-class
+              'java.lang.Class jvm-class-class})
    :unrestricted true}))
 
 (def old-require (sci/eval-form (ctx/get-ctx) 'require))
 
 (def ^:dynamic *old-require* false)
+
+;; clojure.core/class (src/nbb/jvm/lang.cljs) answers records through sci's `type`
+(let [sci-type (sci/eval-form (ctx/get-ctx) 'clojure.core/type)]
+  (swap! (:env (ctx/get-ctx)) assoc-in
+         [:namespaces 'clojure.core 'class]
+         (sci/new-var 'class (jvm-lang/class-fn sci-type) {:ns core-ns})))
 
 ;; printf prints through sci's own `print`, so *out* bindings (with-out-str) see it
 (let [sci-print (sci/eval-form (ctx/get-ctx) 'clojure.core/print)]

@@ -16,7 +16,9 @@
   side compares by identity); arithmetic through clojure.core (+ bi 1)
   answers a JS number when the result is within 2^53 and throws naming
   BigInteger otherwise (the JVM answers a clojure.lang.BigInt: same digits,
-  printed with an N)."
+  printed with an N). Round 3 adds clojure.core/bigint over the same
+  representation (see `bigint`), and biginteger / bigint of a double go
+  through its shortest decimal as the JVM's BigDecimal.valueOf does."
   (:require [clojure.string :as str]
             [goog.object :as gobj]
             [nbb.jvm :as jvm]
@@ -341,13 +343,54 @@
   ([x] (if (string? x) (bi (parse-big x 10)) (bi (from-twos x))))
   ([a b] (if (string? a) (bi (parse-big a b)) (bi (from-magnitude a b)))))
 
+(defn- number->big
+  "The integer part of a JS number as a BigInt, the way the JVM's
+  (biginteger d) / (bigint d) take a double: BigDecimal.valueOf(d), i.e. the
+  SHORTEST decimal that round-trips (JDK 19+ Double.toString, the same digits
+  JS prints), truncated toward zero -- so (bigint 1e23) is 10^23, not the
+  binary value 99999999999999991611392 that js/BigInt would give. A safe
+  integer is itself. NaN / Infinity fail as BigDecimal's parser fails."
+  [x]
+  (cond (js/Number.isSafeInteger x) (js/BigInt x)
+        (js/Number.isNaN x) (throw (jvm/NumberFormatException. "Character N is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark."))
+        (not (js/Number.isFinite x)) (throw (jvm/NumberFormatException. "Character I is neither a decimal digit number, decimal point, nor \"e\" notation exponential mark."))
+        :else
+        (let [[mant ex] (str/split (str (js/Math.abs x)) #"e")
+              ex (if ex (js/parseInt ex 10) 0)
+              [ip fp] (str/split mant #"\.")
+              digits (str ip fp)
+              int-len (+ (count ip) ex)
+              int-digits (cond (<= int-len 0) "0"
+                               (>= int-len (count digits)) (str digits (apply str (repeat (- int-len (count digits)) "0")))
+                               :else (subs digits 0 int-len))
+              v (js/BigInt int-digits)]
+          (if (neg? x) (- v) v))))
+
 (defn biginteger
   "clojure.core/biginteger"
   [x]
   (cond (instance? BigInteger x) x
-        (number? x) (bi (js/BigInt (js/Math.trunc x)))
+        (number? x) (bi (number->big x))
+        (= "bigint" (goog/typeOf x)) (bi x)
         (string? x) (bi (parse-big x 10))
         :else (throw (jvm/IllegalArgumentException. (str "Cannot coerce " (pr-str x) " to a BigInteger on this engine")))))
+
+(defn bigint
+  "clojure.core/bigint. A clojure.lang.BigInt is not a separate type here:
+  the value is a JS number while it is a safe integer (|v| < 2^53,
+  where (= (bigint 5) 5) and (+ (bigint 5) 1) answer as on the JVM) and a
+  java.math.BigInteger (above) beyond that, which prints the same digits and
+  refuses to silently become an inexact number. Doubles go through the
+  shortest decimal, as BigDecimal.valueOf does ((bigint 1e23) is 10^23).
+  Deviations: pr-str prints 5, not 5N; (integer? (bigint 1e20)) is false."
+  [x]
+  (let [v (cond (instance? BigInteger x) (.-v ^js x)
+                (number? x) (number->big x)
+                (= "bigint" (goog/typeOf x)) x
+                (string? x) (parse-big x 10)
+                (nil? x) (throw (js/TypeError. "Cannot invoke \"Object.getClass()\" because \"x\" is null"))
+                :else (throw (jvm/IllegalArgumentException. (str "Cannot coerce " (pr-str x) " to a BigInt on this engine"))))]
+    (if (<= (bi-abs v) max-safe) (js/Number v) (bi v))))
 
 (def BigIntegerClass
   (let [c (js* "(function(){ var B = function BigInteger(){}; return B; })()")]
@@ -361,6 +404,10 @@
     (gobj/set c "probablePrime" (fn [& _] (throw (jvm/UnsupportedOperationException. "BigInteger/probablePrime is not available on this engine"))))
     c))
 
+(def ^:private big-integer-opts
+  {:class BigIntegerClass
+   :constructor (with-meta 'java.math.BigInteger {:sci.impl/constructor new-big-integer})})
+
 (defn classes []
   {'Math JMath
    'java.lang.Math JMath
@@ -368,5 +415,9 @@
    'java.lang.StrictMath JMath
    'ArithmeticException ArithmeticException
    'java.lang.ArithmeticException ArithmeticException
-   'java.math.BigInteger {:class BigIntegerClass
-                          :constructor (with-meta 'java.math.BigInteger {:sci.impl/constructor new-big-integer})}})
+   'java.math.BigInteger big-integer-opts
+   ;; round 3: Clojure auto-imports java.math.BigInteger (RT's DEFAULT_IMPORTS,
+   ;; next to java.lang.*), so a bare `BigInteger` -- e.g. the tag in
+   ;; `(def ^BigInteger P ...)`, which def evaluates -- resolves on the JVM
+   ;; with no :import (org-ietf-ed25519's JVM-era core.clj, 2026-09-24)
+   'BigInteger big-integer-opts})
