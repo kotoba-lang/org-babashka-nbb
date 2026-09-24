@@ -593,6 +593,14 @@
     false))
 
 (def cp-ns (sci/create-ns 'nbb.classpath nil))
+;; `babashka.classpath` is babashka's name for the same host mechanism
+;; (kotoba-lang/kotoba kbb, 2026-09-24): scripts written for bb --
+;; `run_tests.cljk` doing `(cp/add-classpath (str root "/src"))` -- died with
+;; `Could not find namespace: babashka.classpath` on this engine, although the
+;; classpath they mean to extend is exactly `nbb.classpath`'s. The vars are the
+;; same functions, so an entry added through either name is seen by the next
+;; `require`.
+(def bcp-ns (sci/create-ns 'babashka.classpath nil))
 
 (defn version []
   (macros/get-in-package-json :version))
@@ -725,6 +733,9 @@
                            'get-sci-ctx (sci/copy-var ctx/get-ctx nbb-ns)}
                 'nbb.classpath {'add-classpath (sci/copy-var cp/add-classpath cp-ns)
                                 'get-classpath (sci/copy-var cp/get-classpath cp-ns)}
+                'babashka.classpath {'add-classpath (sci/copy-var cp/add-classpath bcp-ns)
+                                     'get-classpath (sci/copy-var cp/get-classpath bcp-ns)
+                                     'split-classpath (sci/copy-var cp/split-classpath bcp-ns)}
                 'nbb.error {'print-error-report (sci/copy-var print-error-report ens)}
                 'goog.object goog-object-ns
                 'edamame.core (sci/copy-ns edamame.core (sci/create-ns 'edamame.core))
