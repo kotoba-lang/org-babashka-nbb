@@ -15,6 +15,7 @@
    [nbb.cljk :as cljk]
    [nbb.common :refer [core-ns]]
    [nbb.error :as nbb.error]
+   [nbb.jvm :as jvm]
    [nbb.impl.sci :as sci-cfg]
    [sci.core :as sci]
    [sci.ctx-store :as ctx]
@@ -670,9 +671,31 @@
 
 (def main-ns (sci/create-ns 'clojure.main))
 
+;; JVM-compatibility scaffolding (src/nbb/jvm.cljs): the host names JVM test
+;; suites reach for first, so they run on this engine and the fleet codemods
+;; can then remove them from the sources. See that namespace's docstring for
+;; what is deliberately NOT shimmed.
+(jvm/install!)
+(def io-ns (sci/create-ns 'clojure.java.io nil))
+(def jvm-core-vars
+  {'slurp (sci/new-var 'slurp jvm/slurp* {:ns core-ns :doc "Reads the file f (path string, java.io.File, file: URL) synchronously; opts :encoding."})
+   'spit (sci/new-var 'spit jvm/spit* {:ns core-ns :doc "Writes (str content) to f; opts :append :encoding."})
+   'format (sci/new-var 'format jvm/format* {:ns core-ns :doc "java.util.Formatter subset: %s %b %c %d %o %x %f %e %n %%."})
+   'ex-cause (sci/new-var 'ex-cause jvm/ex-cause* {:ns core-ns})
+   'ExceptionInfo ExceptionInfo})
+(def jvm-io-namespace
+  {'file (sci/new-var 'file jvm/io-file {:ns io-ns})
+   'as-file (sci/new-var 'as-file jvm/as-file {:ns io-ns})
+   'as-relative-path (sci/new-var 'as-relative-path jvm/as-relative-path {:ns io-ns})
+   'as-url (sci/new-var 'as-url jvm/as-url {:ns io-ns})
+   'make-parents (sci/new-var 'make-parents jvm/make-parents {:ns io-ns})
+   'delete-file (sci/new-var 'delete-file jvm/delete-file {:ns io-ns})
+   'resource (sci/new-var 'resource jvm/resource {:ns io-ns})})
+
 (ctx/reset-ctx!
  (sci/init
-  {:namespaces {'clojure.core {'*command-line-args* command-line-args
+  {:namespaces {'clojure.core (merge
+                              {'*command-line-args* command-line-args
                                '*warn-on-infer* warn-on-infer
                                'time (sci/copy-var time core-ns)
                                'system-time (sci/copy-var system-time core-ns)
@@ -715,6 +738,8 @@
                                'PersistentHashSet cljs.core/PersistentHashSet
                                'PersistentTreeSet cljs.core/PersistentTreeSet
                                'write-all (sci/copy-var write-all core-ns)}
+                              jvm-core-vars)
+                'clojure.java.io jvm-io-namespace
                 'cljs.reader {'read-string (sci/copy-var edn/read-string (sci/create-ns 'cljs.reader))}
                 'clojure.main {'repl-requires (sci/copy-var
                                                repl-requires
@@ -741,15 +766,23 @@
                 'edamame.core (sci/copy-ns edamame.core (sci/create-ns 'edamame.core))
                 'babashka.cli cli-namespace
                 'sci.core sci-cfg/sci-core-namespace}
-   :classes {'js universe :allow :all
-             'goog.object (clj->js goog-object-ns)
-             'ExceptionInfo ExceptionInfo
-             'Math js/Math}
+   :classes (merge
+             {'js universe :allow :all
+              'goog.object (clj->js goog-object-ns)
+              'ExceptionInfo ExceptionInfo
+              'Math js/Math}
+             (jvm/classes))
    :unrestricted true}))
 
 (def old-require (sci/eval-form (ctx/get-ctx) 'require))
 
 (def ^:dynamic *old-require* false)
+
+;; printf prints through sci's own `print`, so *out* bindings (with-out-str) see it
+(let [sci-print (sci/eval-form (ctx/get-ctx) 'clojure.core/print)]
+  (swap! (:env (ctx/get-ctx)) assoc-in
+         [:namespaces 'clojure.core 'printf]
+         (sci/new-var 'printf (fn [fmt & args] (sci-print (apply jvm/format* fmt args))) {:ns core-ns})))
 
 (swap! (:env (ctx/get-ctx)) assoc-in
        [:namespaces 'clojure.core 'require]
