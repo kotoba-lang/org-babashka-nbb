@@ -18,11 +18,17 @@
   purpose (an analysis error naming the symbol beats a silently different
   answer): Long/MAX_VALUE and Long/MIN_VALUE (not representable in a double),
   instance? checks on Long/Integer/Double (1 and 1.0 are the same JS value),
-  java.lang.Error / AssertionError, NullPointerException / ClassCastException /
-  IndexOutOfBoundsException / ArithmeticException (the host throws TypeError /
-  Error or nothing at all for those situations), streams (io/reader,
-  io/input-stream, io/copy, ...), bytes (.getBytes, String. from bytes,
-  StandardCharsets, Base64), java.time, java.nio.file, java.security.
+  java.lang.Error / AssertionError, NullPointerException / ClassCastException
+  (the host throws TypeError / Error or nothing at all for those situations),
+  streams (io/reader, io/input-stream, io/copy, ...).
+  Round 2 lives in nbb.jvm.* next to this file, same rule: byte[] as a
+  signed Int8Array with charsets, String, Base64, ByteArray streams and
+  MessageDigest (nbb.jvm.bytes); java.lang.Math extras and BigInteger
+  (nbb.jvm.math); java.net.URI / URLEncoder (nbb.jvm.net); java.nio.file
+  (nbb.jvm.nio); java.time basics (nbb.jvm.time); Ed25519 keys and
+  signatures, HMAC, SecureRandom (nbb.jvm.security); clojure.java.shell and
+  babashka.process (nbb.jvm.process). Each namespace docstring lists what it
+  deliberately leaves out.
   Known, documented deviations of what IS here: Long/parseLong of a value
   beyond 2^53 returns the nearest double; format accepts an integral value for
   %f/%e (the JVM throws for a Long there; a JS number cannot say which it
@@ -40,7 +46,7 @@
 ;; exceptions
 ;; ---------------------------------------------------------------------------
 
-(def ^:private real-instance?
+(def real-instance?
   "instanceof that ignores a Symbol.hasInstance override (the prototype chain)."
   (js* "(function(C, x){ return Function.prototype[Symbol.hasInstance].call(C, x); })"))
 
@@ -83,7 +89,7 @@
   [x]
   (and (instance? js/Error x) (not (shim? x))))
 
-(defn- defclass [jname parent]
+(defn defclass [jname parent]
   (let [c (make-class jname parent)]
     (set-has-instance! c (fn [x] (real-instance? c x)))
     c))
@@ -146,7 +152,7 @@
 ;; numbers
 ;; ---------------------------------------------------------------------------
 
-(defn- strict-statics
+(defn strict-statics
   "The class object `o` behind a Proxy that throws when one of the `absent`
   JVM statics is read. Without it `Long/MAX_VALUE` (deliberately not shimmed:
   2^63-1 is not a double) would read as undefined -- a silently different
@@ -283,18 +289,18 @@
         (= "/" parent) (str parent child)
         :else (str parent "/" child)))
 
-(def ^:private FileCtor
+(def FileCtor
   (js* "(function(){ return function File(p){ Object.defineProperty(this, 'path', {value: p, enumerable: false}); }; })()"))
 
-(defn- file-path [f] (gobj/get f "path"))
+(defn file-path [f] (gobj/get f "path"))
 
-(defn- ->path-string [x]
+(defn ->path-string [x]
   (cond (string? x) x
         (real-instance? FileCtor x) (file-path x)
         (instance? js/URL x) (url/fileURLToPath x)
         :else (str x)))
 
-(defn- new-file
+(defn new-file
   ([p]
    (when (nil? p) (throw (js/TypeError. "Cannot invoke \"String.length()\" because \"pathname\" is null")))
    (FileCtor. (normalize (->path-string p))))
@@ -307,7 +313,7 @@
                      (FileCtor. (resolve-child "/" child))
                      (FileCtor. (resolve-child (normalize ps) child))))))))
 
-(defn- ^js stat [p]
+(defn ^js stat [p]
   (try (fs/statSync p) (catch :default _ nil)))
 
 (defn- abs-path [p]
@@ -330,6 +336,16 @@
         (if (seq tail) (apply path/join real tail) real)
         (let [parent (path/dirname head)]
           (if (= parent head) r (recur parent (cons (path/basename head) tail))))))))
+
+(def path-of
+  "Set by nbb.jvm.nio: path string -> java.nio.file.Path (File.toPath)."
+  (atom (fn [_] (throw (UnsupportedOperationException. "java.nio.file.Path is not available on this engine")))))
+
+(def input-stream-bytes
+  "Set by nbb.jvm.bytes: x -> the remaining bytes (a Uint8Array) when x is an
+  input stream this engine models (ByteArrayInputStream), else nil. slurp
+  reads those like the JVM's slurp of an InputStream."
+  (atom (fn [_] nil)))
 
 (defn- file-methods []
   {"getPath" (fn [] (this-as ^js this (file-path this)))
@@ -368,7 +384,7 @@
    "listFiles" (fn [] (this-as ^js this (let [p (file-path this)]
                                       (when (some-> (stat p) .isDirectory)
                                         (.map (fs/readdirSync p) (fn [n] (new-file this n)))))))
-   "toPath" (fn [] (throw (UnsupportedOperationException. "java.nio.file.Path is not available on this engine")))
+   "toPath" (fn [] (this-as ^js this (@path-of (file-path this))))
    "equals" (fn [o] (this-as ^js this (and (real-instance? FileCtor o) (= (file-path this) (file-path o)))))
    "hashCode" (fn [] (this-as ^js this (bit-xor (hash (file-path this)) 1234321)))})
 
@@ -408,7 +424,7 @@
 ;; slurp / spit
 ;; ---------------------------------------------------------------------------
 
-(defn- charset->node [enc]
+(defn charset->node [enc]
   (if (nil? enc) "utf8"
       (case (str/upper-case (str enc))
         ("UTF-8" "UTF8") "utf8"
@@ -433,7 +449,7 @@
         (string? x) x
         :else (throw (IllegalArgumentException. (str "Cannot open <" (pr-str x) "> as a file on this engine.")))))
 
-(defn- fnf [p e]
+(defn fnf [p e]
   (FileNotFoundException.
    (str p " ("
         (case (.-code e)
@@ -446,11 +462,13 @@
 (defn slurp*
   "clojure.core/slurp, synchronous, relative to the working directory."
   [f & {:keys [encoding] :as _opts}]
+  (if-let [^js b (@input-stream-bytes f)]
+    (.toString (js/Buffer.from (.-buffer b) (.-byteOffset b) (.-length b)) (charset->node encoding))
   (let [p (io-path f)
         enc (charset->node encoding)]
     (try (fs/readFileSync p enc)
          (catch :default ^js e
-           (if (.-code e) (throw (fnf (->path-string f) e)) (throw e))))))
+           (if (.-code e) (throw (fnf (->path-string f) e)) (throw e)))))))
 
 (defn spit*
   "clojure.core/spit: (str content) to f, :append true appends."
