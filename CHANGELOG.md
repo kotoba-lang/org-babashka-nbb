@@ -1,3 +1,11 @@
+## BigInt hash (kotoba-lang fork, 2026-09-25)
+
+- `cljs.core/hash` of a JS BigInt threw (`goog/getUid` on a primitive), so a
+  set of more than eight BigInts or a map with more than eight BigInt keys
+  could not be built. `nbb.bigint-hash` gives `bigint` an `IHash` equal to
+  Clojure-on-the-JVM's `hash` of the same integer. Test:
+  `node cli.js test-scripts/bigint_hash_test.cljs`.
+
 ## Origin-aware deployment mode
 
 - Add opt-in manifest-validated canonical source resolution and reload.
