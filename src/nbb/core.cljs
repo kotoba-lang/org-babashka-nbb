@@ -11,6 +11,7 @@
    [clojure.string :as str]
    [edamame.core]
    [goog.object :as gobj]
+   [nbb.bigint-hash]
    [nbb.classpath :as cp]
    [nbb.cljk :as cljk]
    [nbb.common :refer [core-ns]]
