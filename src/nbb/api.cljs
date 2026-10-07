@@ -72,6 +72,19 @@
            ;; default classpath
            (cp/add-classpath (process/cwd))))
         (.then (fn [_]
+                 ;; KBB_CLASSPATH_TAIL (kotoba-lang/kotoba bin/kbb, 2026-09-24):
+                 ;; entries appended AFTER everything above -- --classpath, the
+                 ;; default cwd entry, nbb.edn :paths and its :deps. kbb puts
+                 ;; the implicit kotoba stdlib here so that whatever the caller
+                 ;; or the project names is always found first. --classpath
+                 ;; could not carry it: that is added BEFORE the cwd default.
+                 ;; Consumed, not inherited: a process the script spawns (a
+                 ;; test that runs kbb with KBB_NO_STDLIB=1, a plain
+                 ;; node cli.js) must not silently receive this run's tail.
+                 (let [tail (.-KBB_CLASSPATH_TAIL (.-env js/process))]
+                   (js-delete (.-env js/process) "KBB_CLASSPATH_TAIL")
+                   (when (seq tail)
+                     (cp/add-classpath tail)))
                  (reset! initialized? true))))))))
 
 (defn loadFile
