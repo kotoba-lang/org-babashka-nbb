@@ -51,7 +51,15 @@
 (defn init
   []
   (let [config-dir (get @opts :config-dir)
-        cache-path (path/resolve config-dir ".nbb" ".cache")]
+        ;; KBB_CACHE_DIR: point the deps cache OUTSIDE the project checkout.
+        ;; A cache under the checkout makes the checkout root and every
+        ;; dependency cache root claim the same directories (cljk
+        ;; ambiguous-source), so the default in-checkout .nbb/.cache cannot
+        ;; coexist with cljk-roots that include the project root. Default
+        ;; keeps the upstream nbb layout.
+        cache-path (or (some-> (aget js/process.env "KBB_CACHE_DIR")
+                               (path/resolve))
+                       (path/resolve config-dir ".nbb" ".cache"))]
     (when-let [deps (get-in @opts [:config :deps])]
       (->
        (download-and-extract-deps! deps cache-path config-dir)
